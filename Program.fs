@@ -6,11 +6,13 @@ open System.Diagnostics
 open System.Net.Http
 open System.Text
 open System.Text.Json
+open System.Text.Json.Serialization
 open System.Security.Cryptography
 open System.Threading.Tasks
 open Microsoft.Extensions.Logging
 
-// Configuration type
+// Configuration types
+[<CLIMutable>]
 type DatabaseConfig = {
     Host: string
     Port: int
@@ -20,11 +22,13 @@ type DatabaseConfig = {
     PgDumpPath: string
 }
 
+[<CLIMutable>]
 type BackupConfig = {
     LocalDirectory: string
     RetentionDays: int
 }
 
+[<CLIMutable>]
 type BackblazeConfig = {
     Enabled: bool
     KeyId: string
@@ -33,16 +37,32 @@ type BackblazeConfig = {
     BucketId: string
 }
 
+[<CLIMutable>]
 type LogConfig = {
     LogLevel: string
     LogDirectory: string
 }
 
+[<CLIMutable>]
 type Configuration = {
     Database: DatabaseConfig
     Backup: BackupConfig
     Backblaze: BackblazeConfig
     Logging: LogConfig
+}
+
+// Backblaze B2 API response types
+[<CLIMutable>]
+type BackblazeAuthResponse = {
+    authorizationToken: string
+    apiUrl: string
+    downloadUrl: string
+}
+
+[<CLIMutable>]
+type BackblazeUploadUrlResponse = {
+    uploadUrl: string
+    authorizationToken: string
 }
 
 // Logger factory
@@ -65,13 +85,61 @@ let createLogger (config: LogConfig) =
 
     loggerFactory.CreateLogger("PostgreSQLBackup")
 
-// Load configuration from file
+// Use the JsonSerializer without reflection
 let loadConfiguration (configPath: string) =
     if not (File.Exists configPath) then
         failwith $"Configuration file not found: {configPath}"
 
+    // Instead of using JsonSerializer, parse the JSON manually
     let configJson = File.ReadAllText configPath
-    JsonSerializer.Deserialize<Configuration>(configJson)
+    try
+        // Parse the JSON content into separate parts to avoid reflection
+        let rootJson = JsonDocument.Parse(configJson).RootElement
+
+        // Parse Database config
+        let dbElement = rootJson.GetProperty("Database")
+        let database = {
+            Host = dbElement.GetProperty("Host").GetString()
+            Port = dbElement.GetProperty("Port").GetInt32()
+            Username = dbElement.GetProperty("Username").GetString()
+            Password = dbElement.GetProperty("Password").GetString()
+            Database = dbElement.GetProperty("Database").GetString()
+            PgDumpPath = dbElement.GetProperty("PgDumpPath").GetString()
+        }
+
+        // Parse Backup config
+        let backupElement = rootJson.GetProperty("Backup")
+        let backup = {
+            LocalDirectory = backupElement.GetProperty("LocalDirectory").GetString()
+            RetentionDays = backupElement.GetProperty("RetentionDays").GetInt32()
+        }
+
+        // Parse Backblaze config
+        let backblazeElement = rootJson.GetProperty("Backblaze")
+        let backblaze = {
+            Enabled = backblazeElement.GetProperty("Enabled").GetBoolean()
+            KeyId = backblazeElement.GetProperty("KeyId").GetString()
+            ApplicationKey = backblazeElement.GetProperty("ApplicationKey").GetString()
+            BucketName = backblazeElement.GetProperty("BucketName").GetString()
+            BucketId = backblazeElement.GetProperty("BucketId").GetString()
+        }
+
+        // Parse Logging config
+        let loggingElement = rootJson.GetProperty("Logging")
+        let logging = {
+            LogLevel = loggingElement.GetProperty("LogLevel").GetString()
+            LogDirectory = loggingElement.GetProperty("LogDirectory").GetString()
+        }
+
+        // Create the full configuration object
+        {
+            Database = database
+            Backup = backup
+            Backblaze = backblaze
+            Logging = logging
+        }
+    with ex ->
+        failwith $"Failed to parse configuration: {ex.Message}"
 
 // Create backup file name with timestamp
 let createBackupFileName (databaseName: string) =
@@ -138,17 +206,26 @@ let cleanupOldBackups (directory: string) (retentionDays: int) (logger: ILogger)
         logger.LogError(ex, "Error during backup cleanup")
         Error ex.Message
 
-// Backblaze B2 API functions
-type BackblazeAuthResponse = {
-    authorizationToken: string
-    apiUrl: string
-    downloadUrl: string
-}
+// Manually parse Backblaze auth response
+let parseBackblazeAuthResponse (json: string) =
+    let doc = JsonDocument.Parse(json)
+    let root = doc.RootElement
 
-type BackblazeUploadUrlResponse = {
-    uploadUrl: string
-    authorizationToken: string
-}
+    {
+        authorizationToken = root.GetProperty("authorizationToken").GetString()
+        apiUrl = root.GetProperty("apiUrl").GetString()
+        downloadUrl = root.GetProperty("downloadUrl").GetString()
+    }
+
+// Manually parse Backblaze upload URL response
+let parseBackblazeUploadUrlResponse (json: string) =
+    let doc = JsonDocument.Parse(json)
+    let root = doc.RootElement
+
+    {
+        uploadUrl = root.GetProperty("uploadUrl").GetString()
+        authorizationToken = root.GetProperty("authorizationToken").GetString()
+    }
 
 let getBackblazeAuth (keyId: string) (appKey: string) (logger: ILogger) = async {
     logger.LogInformation("Authenticating with Backblaze B2...")
@@ -159,7 +236,9 @@ let getBackblazeAuth (keyId: string) (appKey: string) (logger: ILogger) = async 
 
     try
         let! response = client.GetStringAsync("https://api.backblazeb2.com/b2api/v2/b2_authorize_account") |> Async.AwaitTask
-        let authResponse = JsonSerializer.Deserialize<BackblazeAuthResponse>(response)
+
+        // Use manual parsing instead of JsonSerializer
+        let authResponse = parseBackblazeAuthResponse response
         logger.LogInformation("Successfully authenticated with Backblaze B2")
         return Ok authResponse
     with ex ->
@@ -183,7 +262,8 @@ let getBackblazeUploadUrl (authToken: string) (apiUrl: string) (bucketId: string
             logger.LogError($"Failed to get upload URL: {responseBody}")
             return Error responseBody
         else
-            let uploadUrlResponse = JsonSerializer.Deserialize<BackblazeUploadUrlResponse>(responseBody)
+            // Use manual parsing instead of JsonSerializer
+            let uploadUrlResponse = parseBackblazeUploadUrlResponse responseBody
             logger.LogInformation("Successfully got Backblaze B2 upload URL")
             return Ok uploadUrlResponse
     with ex ->
