@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "postgres_bkup", "postgres_bkup.fsproj", "{9DD55B03-9301-4182-95AA-C429FA4EFFAD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9DD55B03-9301-4182-95AA-C429FA4EFFAD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9DD55B03-9301-4182-95AA-C429FA4EFFAD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9DD55B03-9301-4182-95AA-C429FA4EFFAD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9DD55B03-9301-4182-95AA-C429FA4EFFAD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
