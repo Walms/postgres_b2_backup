@@ -28,7 +28,7 @@
       <Content Include="config.json">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </Content>
-      <Content Include="README.txt" />
+      <Content Include="README.md" />
     </ItemGroup>
 
 </Project>
