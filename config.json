@@ -1,0 +1,25 @@
+﻿{
+    "Database": {
+        "Host": "192.168.0.146",
+        "Port": 5432,
+        "Username": "postgres",
+        "Password": "YOUR_PASSWORD_HERE",
+        "Database": "YOUR_DATABASE_HERE",
+        "PgDumpPath": "/usr/bin/pg_dump"
+    },
+    "Backup": {
+        "LocalDirectory": "./",
+        "RetentionDays": 30
+    },
+    "Backblaze": {
+        "Enabled": false,
+        "KeyId": "your_backblaze_key_id",
+        "ApplicationKey": "your_backblaze_application_key",
+        "BucketName": "postgres-backups",
+        "BucketId": "your_backblaze_bucket_id"
+    },
+    "Logging": {
+        "LogLevel": "Information",
+        "LogDirectory": "./"
+    }
+}
